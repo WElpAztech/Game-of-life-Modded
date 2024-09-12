@@ -2,7 +2,7 @@
 
 ### About
 
-Modded version of me and my classmates Conway Game of life project. This modded version is changed to be more on i would've made it.
+Modded version of me and my classmates Conway Game of life project. This modded version is changed to be more on how i would've made it.
 
 ### Controls
 
@@ -16,8 +16,6 @@ Modded version of me and my classmates Conway Game of life project. This modded 
 - **`m`:** Mute/unmute sound effects
 - **`t`:** Reset the camera
 - **`g`:** Toggle grid visibility
-- **`e`:** Cycle through cell colors
-- **`b`:** Cycle through background colors
 - **`n`:** Toggle help menu
 - **`h`:** Toggle debug mode
 - **`escape`:** Quit the game
