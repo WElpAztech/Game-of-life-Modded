@@ -19,7 +19,7 @@ Modded version of me and my classmates Conway Game of life project. This modded 
 - **M1:** Place cells
 - **M2:** Remove cells
 - **R:** Rotate prefabs clockwise
-- **Q:** Pause when placing
+- **Q:** Pause when placing/del
 - **SPACE:** Start/Pause game
 - **Arrow Up/Down:** Adjust tick speed
 - **C:** Clear all current cells
@@ -39,7 +39,7 @@ Modded version of me and my classmates Conway Game of life project. This modded 
 - **Tick speed:** Shows the tick speed
 - **Show Help Menu:** Shows if the help menu is displayed
 - **Grid Visibility:** Shows if the grid is visible
-- **Pause on Place:** Shows if the game pauses when placing cells
+- **Pause on Place/Delete:** Shows if the game pauses when placing cells
 - **SFX Enabled:** Shows if sound effects are enabled
 - **Running:** Shows if the game is running
 - **Current Gen:** Shows the current generation
