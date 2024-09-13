@@ -1,19 +1,19 @@
 local module = {}
 local patterns = require("patterns")
+local ui = require("ui")
 
-local cellSize = 10
+local cellSize = 5
 local generation = 0
 local count = 0
 
-local cellColor = {0, 1, 0}
+local cellColor = {1, 0, 0}
 local width, height = love.window.getDesktopDimensions()
 local screenSize = {['x'] = width, ['y'] = height}
-local camera = {pos = {['x'] = 1.5 * cellSize, ['y'] = 1.5 * cellSize}, speed = 25}
+local camera = {pos = {['x'] = 0, ['y'] = 0}, speed = 25}
 
 local isPlacing = false
 local isRemoving = false
 local isGridVisible = true
-local rainbow = false
 local rotate = 1
 
 local place = love.audio.newSource("sfx/place.wav", "static")
@@ -22,77 +22,95 @@ local select = love.audio.newSource("sfx/select.wav", "static")
 local clear = love.audio.newSource("sfx/clear.wav", "static")
 
 local colors = {
-    {0.1, 1, 0.1}, -- Green
-    {0.2, 0.2, 1}, -- Blue
-    {1, 0.2, 0.2}, -- Red
+    {1, 0, 0}, -- Red
+    {0, 1, 0}, -- Green
+    {0, 0.5, 1}, -- Blue
     {1, 0.6, 0.2}, -- Orange
-    {1, 1, 0.1}, -- Yellow
     {0.8, 0.2, 0.8}, -- Purple
-    {0.2, 1, 1}, -- Cyan
+    {1, 0.75, 0.8}, -- Pink
     {1, 1, 1} -- White
 }
-local currentColorIndex = 1
+local colorIndex = 1
 
-function module.debug(isRunning, sfx, pauseOnPlace, showHelpMenu, tickSpeed, tickCount)
+function module.debug(isRunning, sfx, pauseOnPlace, showHelpMenu, tickSpeed, tickCount, drawcallsbatched, drawcalls)
     love.graphics.setColor(1, 1, 0)
-    love.graphics.print("DEBUG MENU", 10, height - 280)
+    love.graphics.setNewFont(20)
+    love.graphics.print("DEBUG MENU", 10, height - 440)
+    love.graphics.setNewFont(11)
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Gamespeed: " .. tostring(tickSpeed) .. ", time until cells move: " .. tostring(tickCount), 10, height - 260)
-    love.graphics.print("showHelpMenu: " .. tostring(showHelpMenu), 10, height - 240)
-    love.graphics.print("isGridVisible: " .. tostring(isGridVisible), 10, height - 220)
-    love.graphics.print("Pause on Place: " .. tostring(pauseOnPlace), 10, height - 200)
-    love.graphics.print("SFX: " .. tostring(sfx), 10, height - 180)
-    love.graphics.print("isRunning: " .. tostring(isRunning), 10, height - 160)
-    love.graphics.print("Generation: " .. generation, 10, height - 140)
-    love.graphics.print("Population: " .. tostring(count), 10, height - 120)
+    love.graphics.print("Note: Holding down ctrl while Arrow Up/Down", 10, height - 400)
+    love.graphics.print("will increment/decrement by 0.1", 10, height - 380)
+    love.graphics.print("Draw Calls Batched: " .. tostring(drawcallsbatched), 10, height - 340)
+    love.graphics.print("Draw Calls: " .. tostring(drawcalls), 10, height - 320)
+    love.graphics.print(string.format("Memory Usage: %.2f KB", collectgarbage("count")), 10, height - 300)
+    love.graphics.print("Time Until Cells Update: " .. tostring(tickCount), 10, height - 280)
+    love.graphics.print("Tick speed: " .. string.format("%.1f", tickSpeed) .. "X", 10, height - 260)
+    love.graphics.print("Show Help Menu: " .. tostring(showHelpMenu), 10, height - 240)
+    love.graphics.print("Grid Visibility: " .. tostring(isGridVisible), 10, height - 220)
+    love.graphics.print("Pause on Place/Delete: " .. tostring(pauseOnPlace), 10, height - 200)
+    love.graphics.print("SFX Enabled: " .. tostring(sfx), 10, height - 180)
+    love.graphics.print("Running: " .. tostring(isRunning), 10, height - 160)
+    love.graphics.print("Current Gen: " .. generation, 10, height - 140)
+    love.graphics.print("Current Cells: " .. tostring(count), 10, height - 120)
     love.graphics.print("Camera X: " .. camera.pos.x .. ", Camera Y: " .. camera.pos.y, 10, height - 100)
-    love.graphics.print(string.format("Zoom Level: %.2fx", cellSize / 10), 10, height - 80)
+    love.graphics.print(string.format("Zoom: %.2fx", cellSize / 10), 10, height - 80)
     love.graphics.print("Camera Speed: " .. camera.speed, 10, height - 60)
-    love.graphics.print(tostring(love.timer.getFPS()) .. " fps", 10, height - 40)
-    love.graphics.print("V0.0.1 - Pre Alpha", 10, height - 20)
+    love.graphics.print("Current FPS " .. tostring(love.timer.getFPS()), 10, height - 40)
+    love.graphics.print("V1.0.0 WelpAztech Mod", 10, height - 20)
 end
 
 function module.helpMenu()
-    love.graphics.setColor(0.68, 0.85, 0.90)
-    love.graphics.print("HELP MENU", width - 165, height - 460)
+    love.graphics.setColor(0.68, 0.85, 1)
+    love.graphics.setNewFont(20)
+    love.graphics.print("CONTROLS", width - 170, height - 440)
     love.graphics.setColor(1, 1, 1)
+    love.graphics.setNewFont(11)
     -- Tip
-    love.graphics.print("TIP: Hold Mouse 1 to place", width - 165, height - 440)
-    love.graphics.print("and Mouse 2 to remove", width - 165, height - 420)
+    love.graphics.print("TIP: Hold M1 to auto place", width - 170, height - 400)
+    love.graphics.print("and hold M2 to auto remove", width - 170, height - 380)
     -- Movement
-    love.graphics.print("WASD: Move camera pos", width - 165, height - 380)
-    love.graphics.print("Ctrl + WASD: Move slower", width - 165, height - 360)
-    love.graphics.print("Shift + WASD: Move faster", width - 165, height - 340)
-    love.graphics.print("SCROLL: Zoom cam in/out", width - 165, height - 320)
-    love.graphics.print("T: Reset camera pos", width - 165, height - 300)
+    love.graphics.print("WASD: Move camera pos", width - 170, height - 340)
+    love.graphics.print("Ctrl + WASD: Move slower", width - 170, height - 320)
+    love.graphics.print("Shift + WASD: Move faster", width - 170, height - 300)
+    love.graphics.print("SCROLL: Zoom cam in/out", width - 170, height - 280)
+    love.graphics.print("T: Reset camera position", width - 170, height - 260)
     -- Actions
-    love.graphics.print("M1: Place cells", width - 165, height - 280)
-    love.graphics.print("M2: Delete cells", width - 165, height - 260)
-    love.graphics.print("R: Rotate ", width - 165, height - 240)
-    love.graphics.print("P: Pause when placing", width - 165, height - 220)
-    love.graphics.print("SPACE: Start/Pause", width - 165, height - 200)
-    love.graphics.print("Arrow Up/Down: tick speed", width - 165, height - 180)
+    love.graphics.print("M1: Place cells", width - 170, height - 240)
+    love.graphics.print("M2: Remove cells", width - 170, height - 220)
+    love.graphics.print("R: Rotate prefabs clockwise", width - 170, height - 200)
+    love.graphics.print("Q: Pause when placing/del", width - 170, height - 180)
+    love.graphics.print("SPACE: Start/Pause game", width - 170, height - 160)
+    love.graphics.print("Arrow Up/Down: tick speed", width - 170, height - 140)
     -- Misc
-    love.graphics.print("C: Clear all cells", width - 165, height - 160)
-    love.graphics.print("G: Hide/Show grid", width - 165, height - 140)
-    love.graphics.print("E: Change cell color", width - 165, height - 120)
-    love.graphics.print("B: Change background col", width - 165, height - 100)
-    love.graphics.print("M: Mute Sfx", width - 165, height - 80)
-    love.graphics.print("N: Toggle help menu", width - 165, height - 60)
-    love.graphics.print("H: Toggle Debug Menu", width - 165, height - 40)
-    love.graphics.print("ESC: Exit game", width - 165, height - 20)
+    love.graphics.print("C: Clear all current cells", width - 170, height - 120)
+    love.graphics.print("G: Hide/Show grid", width - 170, height - 100)
+    love.graphics.print("M: Mute all sound effcts", width - 170, height - 80)
+    love.graphics.print("N: Toggle help menu", width - 170, height - 60)
+    love.graphics.print("H: Toggle Debug Menu", width - 170, height - 40)
+    love.graphics.print("ESC: Exit game (No save)", width - 170, height - 20)
 end
 
 function grid()
     if not isGridVisible then return end
-    love.graphics.setColor(0.1, 0.1, 0.1)
-    local gridSize = cellSize >= 10 and cellSize or cellSize * 10
-    for i = 0, screenSize.x / gridSize do
-        local lineX = (i * gridSize) - camera.pos.x % gridSize + (screenSize.x / 2) % gridSize
+
+    love.graphics.setColor(78/255, 78/255, 78/255, 0.25)
+    for i = 0, screenSize.x / cellSize do
+        local lineX = (i * cellSize) - camera.pos.x % cellSize + (screenSize.x / 2) % cellSize
         love.graphics.line(lineX, 0, lineX, screenSize.y)
     end
-    for i = 0, screenSize.y / gridSize do
-        local lineY = (i * gridSize) - camera.pos.y % gridSize + (screenSize.y / 2) % gridSize
+    for i = 0, screenSize.y / cellSize do
+        local lineY = (i * cellSize) - camera.pos.y % cellSize + (screenSize.y / 2) % cellSize
+        love.graphics.line(0, lineY, screenSize.x, lineY)
+    end
+
+    local biggerGridSize = cellSize * 10
+    love.graphics.setColor(110/255, 110/255, 110/255, 0.25)
+    for i = 0, screenSize.x / biggerGridSize do
+        local lineX = (i * biggerGridSize) - camera.pos.x % biggerGridSize + (screenSize.x / 2) % biggerGridSize
+        love.graphics.line(lineX, 0, lineX, screenSize.y)
+    end
+    for i = 0, screenSize.y / biggerGridSize do
+        local lineY = (i * biggerGridSize) - camera.pos.y % biggerGridSize + (screenSize.y / 2) % biggerGridSize
         love.graphics.line(0, lineY, screenSize.x, lineY)
     end
 end
@@ -108,19 +126,11 @@ function module.draw()
     love.graphics.setColor(1, 1, 1)
 end
 
-function module.rainbowMode()
-
-    rainbow = not rainbow
-
-end
-
 function module.DrawTile(x, y)
-    if cell[y][x] == 1 and rainbow == false then
-        love.graphics.setColor(cellColor) -- Alive cell (green)
-    elseif cell[y][x] == 1 and rainbow == true then
-        love.graphics.setColor(math.random(0.01, 1), math.random(0.01, 1), math.random(0.01, 1))
+    if cell[y][x].state == 1 then
+        love.graphics.setColor(cell[y][x].color)
     else
-        love.graphics.setColor(0, 0, 0) -- Dead cell (black)
+        love.graphics.setColor(0, 0, 0)
     end
     love.graphics.rectangle("fill", (x * cellSize) - camera.pos.x + (screenSize.x / 2), (y * cellSize) - camera.pos.y + (screenSize.y / 2), cellSize, cellSize)
 end
@@ -132,6 +142,10 @@ function module.wheelmoved(x, y)
         cellSize = cellSize + 1
     elseif y < 0 and cellSize > 1 then
         cellSize = cellSize - 1
+    end
+
+    if cellSize < 2 then
+        cellSize = 2
     end
 
     local scaleFactor = cellSize / oldcellSize
@@ -161,28 +175,22 @@ function module.Camera()
     end
 
     if love.keyboard.isDown('lshift') then
-        camera.speed = 37.5
+        camera.speed = 16
     elseif love.keyboard.isDown('lctrl') then
-        camera.speed = 5
+        camera.speed = 4
     else
-        camera.speed = 25
+        camera.speed = 8
     end
 end
 
 function module.spawnCell(cellX, cellY, sfx)
-
     if not cell[cellY] then
         cell[cellY] = {}
     end
 
-    if cell[cellY][cellX] ~= 1 then
-        cell[cellY][cellX] = 1
-    end
+    cell[cellY][cellX] = {state = 1, color = colors[colorIndex]}
 
-    if sfx then
-        love.audio.play(place)
-    end
-
+    if sfx then love.audio.play(place) end
 end
 
 function module.placeCell(x, y, sfx, brush)
@@ -214,11 +222,9 @@ local function removeCell(x, y, sfx)
     local cellX = math.floor((x - (screenSize.x / 2) + camera.pos.x) / cellSize)
     local cellY = math.floor((y - (screenSize.y / 2) + camera.pos.y) / cellSize)
 
-    if cell[cellY] and cell[cellY][cellX] == 1 then
-        cell[cellY][cellX] = 0
-        if sfx then
-            love.audio.play(remove)
-        end
+    if cell[cellY] and cell[cellY][cellX] and cell[cellY][cellX].state == 1 then
+        cell[cellY][cellX] = nil
+        if sfx then love.audio.play(remove) end
     end
 end
 
@@ -230,26 +236,6 @@ function module.mousepressed(x, y, button, istouch, presses, sfx, uiBool, brush)
         elseif button == 2 then
             isRemoving = true
             removeCell(x, y, sfx)
-        end
-    elseif uiBool == false and y <= 125 then
-        if x <= 100 then
-            setBrush(1)
-        elseif x > 100 and x <= 200 then
-            setBrush(2)
-        elseif x > 200 and x <= 500 then
-            setBrush(3)
-        elseif x > 500 and x <= 650 then
-            setBrush(4)
-        elseif x > 650 and x <= 750 then
-            setBrush(5)
-        elseif x > 750 and x <= 830 then
-            setBrush(6)
-        elseif x > 750 and x <= 900 then
-            setBrush(7)
-        elseif x > 900 and x <= 1030 then
-            setBrush(8)
-        elseif x > 1030 and x <= 1120 then
-            setBrush(9)
         end
     elseif uiBool == true then
         if button == 1 then
@@ -286,21 +272,14 @@ function module.mute(state)
     sfx = state
 end
 
-function module.cellColor(color)
-    cellColor = color
-end
-
-function module.cycleColor()
-    currentColorIndex = currentColorIndex % #colors + 1
-    module.cellColor(colors[currentColorIndex])
+function module.setAndCycleColor()
+    colorIndex = colorIndex % #colors + 1
+    cellColor = colors[colorIndex]
+    ui.updateBrushTextWithColor(colorIndex)
 end
 
 function module.rotate()
-    if rotate == 4 then
-        rotate = 1
-    else
-        rotate = rotate + 1
-    end
+    rotate = (rotate % 4) + 1
 end
 
 function module.toggleGridVisibility()
@@ -319,7 +298,7 @@ function module.updateCells()
     local newCells = {}
     count = 0
     for x, row in pairs(cell) do
-        for y, _ in pairs(row) do
+        for y, cellData in pairs(row) do
             count = count + 1
             for dx = -1, 1 do
                 for dy = -1, 1 do
@@ -330,16 +309,18 @@ function module.updateCells()
                     for ddx = -1, 1 do
                         for ddy = -1, 1 do
                             local nnx, nny = nx + ddx, ny + ddy
-                            if not (ddx == 0 and ddy == 0) and cell[nnx] and cell[nnx][nny] == 1 then
+                            if not (ddx == 0 and ddy == 0) and cell[nnx] and cell[nnx][nny] and cell[nnx][nny].state == 1 then
                                 population = population + 1
                             end
                         end
                     end
 
-                    if cell[nx] and cell[nx][ny] == 1 then
-                        newCells[nx][ny] = (population == 2 or population == 3) and 1 or 0
+                    if cell[nx] and cell[nx][ny] and cell[nx][ny].state == 1 then
+                        newCells[nx][ny] = {state = (population == 2 or population == 3) and 1 or 0, color = cell[nx][ny].color}
                     else
-                        newCells[nx][ny] = (population == 3) and 1 or 0
+                        if population == 3 then
+                            newCells[nx][ny] = {state = 1, color = cellData.color}
+                        end
                     end
                 end
             end
@@ -347,8 +328,8 @@ function module.updateCells()
     end
 
     for x, row in pairs(newCells) do
-        for y, value in pairs(row) do
-            if value == 0 then
+        for y, cellData in pairs(row) do
+            if cellData.state == 0 then
                 newCells[x][y] = nil
             end
         end
@@ -359,8 +340,8 @@ function module.updateCells()
 end
 
 function module.resetCamera()
-    camera.pos.x = 1.5 * cellSize
-    camera.pos.y = 1.5 * cellSize
+    camera.pos.x = 0
+    camera.pos.y = 0
 end
 
 function module.placePattern(x, y, pattern, sfx, offsetX, offsetY, brush)
@@ -369,7 +350,7 @@ function module.placePattern(x, y, pattern, sfx, offsetX, offsetY, brush)
 
     for dy, row in ipairs(pattern) do
         for dx, value in ipairs(row) do
-            if value == 1 then  
+            if value == 1 then
                 local finalX = cellX + dx + offsetX
                 local finalY = cellY + dy + offsetY
                 module.spawnCell(finalX, finalY, sfx)

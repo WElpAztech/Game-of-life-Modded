@@ -2,36 +2,26 @@ local module = require("module")
 local ui = require("ui")
 
 cell = {}
-local colors = {
-    {0, 0, 0}, -- Black
-    {0.05, 0.5, 0.05}, -- Dark Green
-    {0.1, 0.1, 0.5}, -- Dark Blue
-    {0.5, 0.1, 0.1}, -- Dark Red
-    {0.5, 0.3, 0.1}, -- Dark Orange
-    {0.5, 0.5, 0.05}, -- Dark Yellow
-    {0.4, 0.1, 0.4}, -- Dark Purple
-    {0.1, 0.5, 0.5}, -- Dark Cyan
-    {0.5, 0.5, 0.5}, -- Dark White (Gray)
-    {0.12, 0.12, 0.12} -- dark gray
-}
 
-local debug = true
+local debug = false
 local isRunning = false
 local sfx = true
 local pauseOnPlace = false
 local showHelpMenu = true
-
 local brush = 1
 local tickSpeed = 1
 local tickCount = 0.0
-local standardColorIndex = 1
+
+local upPressed = false
+local downPressed = false
+local ctrlPressed = false
+local incrementTimer = 0
+local incrementInterval = 0.1
 
 function love.update(dt)
-    ui.buttons()
     module.Camera()
-    isRunning = ui.controls(isRunning)
     if isRunning and tickSpeed >= 1 then
-        for i = 1,tickSpeed do
+        for i = 1, tickSpeed do
             module.updateCells()
         end
     elseif isRunning and tickSpeed < 1 then
@@ -41,19 +31,42 @@ function love.update(dt)
             module.updateCells()
         end
     end
+
+    incrementTimer = incrementTimer + dt
+    if incrementTimer >= incrementInterval then
+        if upPressed and tickSpeed < 20 then
+            if ctrlPressed then
+                tickSpeed = tickSpeed + 0.1
+            else
+                tickSpeed = tickSpeed + 1
+            end
+        elseif downPressed and tickSpeed > 0.1 then
+            if ctrlPressed then
+                tickSpeed = tickSpeed - 0.1
+            else
+                tickSpeed = tickSpeed - 1
+            end
+        end
+        incrementTimer = 0
+    end
+
+    if tickSpeed < 0.1 then
+        tickSpeed = 0.1
+    end
 end
 
 function love.draw()
-    love.graphics.clear(colors[standardColorIndex])
+    love.graphics.clear(40/255, 40/255, 40/255)
 
     module.draw()
     ui.draw(brush)
 
-    if showHelpMenu then
-        module.helpMenu()
-    end
+    if showHelpMenu then module.helpMenu() end
     if debug then
-        module.debug(isRunning, sfx, pauseOnPlace, showHelpMenu, tickSpeed, tickCount)
+        local stats = love.graphics.getStats()
+        local drawcallsbatched = stats.drawcallsbatched
+        local drawcalls = stats.drawcalls
+        module.debug(isRunning, sfx, pauseOnPlace, showHelpMenu, tickSpeed, tickCount, drawcallsbatched, drawcalls)
     end
 end
 
@@ -88,7 +101,6 @@ function love.keypressed(key)
         debug = not debug
         module.playSFX(sfx, "select")
     elseif key == "space" then
-        ui.changePlayPauseButton(isRunning)
         isRunning = not isRunning
         module.setRunning(isRunning)
         module.playSFX(sfx, "select")
@@ -98,11 +110,17 @@ function love.keypressed(key)
     elseif key == "r" then
         ui.setrotation()
         module.rotate()
-        module.playSFX(sfx, "random")
+        module.playSFX(sfx, "select")
     elseif key == "t" then
         module.resetCamera()
         module.playSFX(sfx, "select")
     elseif key == "p" then
+        pauseOnPlace = not pauseOnPlace
+        module.playSFX(sfx, "select")
+    elseif key == "e" then
+        module.setAndCycleColor()
+        module.playSFX(sfx, "select")
+    elseif key == "q" then
         pauseOnPlace = not pauseOnPlace
         module.playSFX(sfx, "select")
     elseif key == "g" then
@@ -111,32 +129,27 @@ function love.keypressed(key)
     elseif key == "n" then
         showHelpMenu = not showHelpMenu
         module.playSFX(sfx, "select")
-    elseif key == "e" then
-        module.cycleColor()
-        module.playSFX(sfx, "select")
-    elseif key == "1" or key == "2" or key == "3" or key == "4" or key == "5" or key == "6" or key == "7" or key == "8" or key == "9" then
+    elseif key >= "1" and key <= "9" then
         brush = tonumber(key)
-    elseif key == "up" and tickSpeed < 20  then
-        if tickSpeed > 1 then
-            tickSpeed = tickSpeed + 1
-        else
-            tickSpeed = tickSpeed * 2
-        end
-    elseif key == "down" and tickSpeed >= 0.01 then
-        if tickSpeed > 1 then
-            tickSpeed = tickSpeed - 1
-        else
-            tickSpeed = tickSpeed / 2
-        end
-    elseif key == "b" then
-        standardColorIndex = standardColorIndex % #colors + 1
-    elseif key == "0" then
-        module.rainbowMode()
+    elseif key == "up" then
+        upPressed = true
+    elseif key == "down" then
+        downPressed = true
+    elseif key == "lctrl" or key == "rctrl" then
+        ctrlPressed = true
+    end
+end
+
+function love.keyreleased(key)
+    if key == "up" then
+        upPressed = false
+    elseif key == "down" then
+        downPressed = false
+    elseif key == "lctrl" or key == "rctrl" then
+        ctrlPressed = false
     end
 end
 
 function setBrush(variable)
-
     brush = variable
-
 end
